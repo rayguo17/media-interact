@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision'
+import {
+  clearRecognitionRuntimeState,
+  createRecognitionRuntimeState,
+  formatEvent,
+  pinchTransitionRecognizer,
+  processHandResult,
+  wristMovementRecognizer,
+  type MovementRecognizer,
+  type OneTimeRecognizer,
+} from './recognizers'
 
 function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -8,9 +18,14 @@ function App() {
   const rafIdRef = useRef<number | null>(null)
   const handLandmarkerRef = useRef<HandLandmarker | null>(null)
   const processingRef = useRef(false)
+  const recognitionStateRef = useRef(createRecognitionRuntimeState())
+  const oneTimeRecognizersRef = useRef<OneTimeRecognizer[]>([pinchTransitionRecognizer])
+  const movementRecognizersRef = useRef<MovementRecognizer[]>([wristMovementRecognizer])
   const [error, setError] = useState<string | null>(null)
   const [frameMs, setFrameMs] = useState<number | null>(null)
   const [avgFrameMs, setAvgFrameMs] = useState<number | null>(null)
+  const [lastOneTimeEvent, setLastOneTimeEvent] = useState<string>('n/a')
+  const [lastMovementEvent, setLastMovementEvent] = useState<string>('n/a')
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -52,6 +67,7 @@ function App() {
         handLandmarkerRef.current.close()
         handLandmarkerRef.current = null
       }
+      clearRecognitionRuntimeState(recognitionStateRef.current)
     }
   }, [])
 
@@ -68,12 +84,10 @@ function App() {
         if (videoRef.current) {
           if (videoRef.current.srcObject) {
             console.warn('Video element already has a source object. Overwriting it.')
-          }else{
-            console.log('Webcam stream obtained:', stream)
+          } else {
             videoRef.current.srcObject = stream
             await videoRef.current.play()
           }
-          
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unable to access webcam.')
@@ -131,7 +145,22 @@ function App() {
           const now = performance.now()
           const result = handLandmarker.detectForVideo(video, now)
           const elapsedMs = performance.now() - now
-          console.log('HandLandmarker result:', result)
+
+          const events = processHandResult(
+            { timestamp: now, result },
+            recognitionStateRef.current,
+            oneTimeRecognizersRef.current,
+            movementRecognizersRef.current
+          )
+
+          if (events.oneTimeEvents.length > 0) {
+            setLastOneTimeEvent(formatEvent(events.oneTimeEvents[events.oneTimeEvents.length - 1]))
+          }
+
+          if (events.movementEvents.length > 0) {
+            setLastMovementEvent(formatEvent(events.movementEvents[events.movementEvents.length - 1]))
+          }
+          
           setFrameMs(elapsedMs)
           setAvgFrameMs((prev) => (prev === null ? elapsedMs : prev * 0.9 + elapsedMs * 0.1))
           processingRef.current = false
@@ -176,6 +205,8 @@ function App() {
             <p>
               Avg (EMA): {avgFrameMs ? `${avgFrameMs.toFixed(2)} ms` : 'n/a'}
             </p>
+            <p>Last one-time event: {lastOneTimeEvent}</p>
+            <p>Last movement event: {lastMovementEvent}</p>
           </div>
         </div>
       )}
