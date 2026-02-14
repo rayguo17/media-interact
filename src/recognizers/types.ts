@@ -2,6 +2,11 @@ import type { HandLandmarkerResult } from '@mediapipe/tasks-vision'
 
 export type LandmarkPoint = { x: number; y: number; z: number }
 
+export type HandPointer = {
+  handIndex: number
+  indexTip: LandmarkPoint | null
+}
+
 export type OneTimeEvent = {
   type: string
   handIndex: number

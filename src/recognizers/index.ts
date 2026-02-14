@@ -7,6 +7,7 @@ export {
   getOrCreateHandState,
 } from './runtime'
 export type {
+  HandPointer,
   LandmarkPoint,
   OneTimeEvent,
   MovementEvent,

@@ -1,4 +1,6 @@
 import type {
+  HandPointer,
+  LandmarkPoint,
   MovementEvent,
   MovementRecognizer,
   OneTimeEvent,
@@ -25,6 +27,10 @@ export const processHandResult = (
 ) => {
   const oneTimeEvents = oneTimeRecognizers.flatMap((recognizer) => recognizer(frame, state))
   const movementEvents = movementRecognizers.flatMap((recognizer) => recognizer(frame, state))
+  const handPointers: HandPointer[] = frame.result.landmarks.map((landmarks, handIndex) => ({
+    handIndex,
+    indexTip: (landmarks[8] as LandmarkPoint | undefined) ?? null,
+  }))
 
-  return { oneTimeEvents, movementEvents }
+  return { oneTimeEvents, movementEvents, handPointers }
 }
