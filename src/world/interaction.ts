@@ -9,6 +9,16 @@ import type {
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
+const isRectLike = (kind: WorldObject['kind']) =>
+  kind === 'rect' || kind === 'box3d' || kind === 'model3d'
+
+const isCircleLike = (kind: WorldObject['kind']) => kind === 'circle' || kind === 'sphere3d'
+
+const toNormalizedPointerZ = (z: number) => {
+  const normalized = 0.5 - z * 2
+  return clamp(normalized, 0, 1)
+}
+
 const normalizeHexColor = (value: string) => {
   const hex = value.startsWith('#') ? value.slice(1) : value
   if (/^[0-9a-fA-F]{6}$/.test(hex)) return `#${hex.toLowerCase()}`
@@ -64,13 +74,21 @@ const getTopInteractableAtPointer = (world: World, pointer: PointerPoint) => {
     const dy = pointer.y - object.position.y
 
     let inside = false
-    if (object.kind === 'rect') {
+    if (isRectLike(object.kind)) {
       inside = Math.abs(dx) <= halfWidth && Math.abs(dy) <= halfHeight
     }
 
-    if (object.kind === 'circle') {
+    if (isCircleLike(object.kind)) {
       const radius = Math.min(halfWidth, halfHeight)
       inside = Math.hypot(dx, dy) <= radius
+    }
+
+    if (inside && (object.kind === 'box3d' || object.kind === 'sphere3d' || object.kind === 'model3d')) {
+      const objectZ = object.position.z ?? 0.5
+      const objectDepth = object.size.depth ?? Math.min(object.size.width, object.size.height)
+      const pointerZ = toNormalizedPointerZ(pointer.z)
+      const zTolerance = objectDepth / 2 + 0.15
+      inside = Math.abs(pointerZ - objectZ) <= zTolerance
     }
 
     if (!inside) continue
@@ -141,12 +159,26 @@ const applyMovementEvents = (world: World, movementEvents: WorldGestureEvent[]) 
     if (event.type === 'swipe-right') {
       selectedObject.size.width = clamp(selectedObject.size.width * 1.08, 0.01, 1)
       selectedObject.size.height = clamp(selectedObject.size.height * 1.08, 0.01, 1)
+      if (
+        selectedObject.kind === 'box3d' ||
+        selectedObject.kind === 'sphere3d' ||
+        selectedObject.kind === 'model3d'
+      ) {
+        selectedObject.size.depth = clamp((selectedObject.size.depth ?? selectedObject.size.width) * 1.08, 0.01, 1)
+      }
       selectedObject.zIndex = (selectedObject.zIndex ?? 0) + 1
     }
 
     if (event.type === 'swipe-left') {
       selectedObject.size.width = clamp(selectedObject.size.width * 0.92, 0.01, 1)
       selectedObject.size.height = clamp(selectedObject.size.height * 0.92, 0.01, 1)
+      if (
+        selectedObject.kind === 'box3d' ||
+        selectedObject.kind === 'sphere3d' ||
+        selectedObject.kind === 'model3d'
+      ) {
+        selectedObject.size.depth = clamp((selectedObject.size.depth ?? selectedObject.size.width) * 0.92, 0.01, 1)
+      }
       selectedObject.zIndex = (selectedObject.zIndex ?? 0) + 1
     }
 
@@ -166,6 +198,10 @@ const applyPointerTracking = (world: World, pointerMap: Map<number, PointerPoint
 
     object.position.x = clamp(pointer.x, 0, 1)
     object.position.y = clamp(pointer.y, 0, 1)
+
+    if (object.kind === 'box3d' || object.kind === 'sphere3d' || object.kind === 'model3d') {
+      object.position.z = toNormalizedPointerZ(pointer.z)
+    }
   }
 }
 

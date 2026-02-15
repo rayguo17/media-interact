@@ -1,5 +1,6 @@
 import type { World, WorldFrameContext, WorldObject } from './types'
 import { applyWorldInteraction } from './interaction'
+import { applyWorldAnimation } from './animation'
 
 export const createWorld = (): World => {
   const world: World = {
@@ -17,6 +18,7 @@ export const createWorld = (): World => {
     interactable: false,
     position: { x: 0.92, y: 0.08 },
     size: { width: 0.03, height: 0.03 },
+    animation: { enabled: false },
     color: '#22c55e',
     visible: true,
     zIndex: 10,
@@ -57,4 +59,10 @@ export const getOrderedWorldObjects = (world: World): WorldObject[] => {
 
 export const updateWorldFrame = (world: World, context: WorldFrameContext) => {
   applyWorldInteraction(world, context)
+
+  const previousTimestamp = world.interactionState.lastFrameTimestamp ?? context.timestamp
+  const deltaSeconds = Math.max(0, (context.timestamp - previousTimestamp) / 1000)
+  world.interactionState.lastFrameTimestamp = context.timestamp
+
+  applyWorldAnimation(world, deltaSeconds)
 }

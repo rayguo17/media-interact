@@ -1,11 +1,31 @@
-export type WorldObjectKind = 'circle' | 'rect'
+export type WorldObjectKind = 'circle' | 'rect' | 'box3d' | 'sphere3d' | 'model3d'
+
+export type WorldPosition = {
+  x: number
+  y: number
+  z?: number
+}
+
+export type WorldSize = {
+  width: number
+  height: number
+  depth?: number
+}
+
+export type WorldObjectAnimation = {
+  enabled?: boolean
+  spinSpeed?: number
+}
 
 export type WorldObjectBase = {
   id: string
   kind: WorldObjectKind
   interactable: boolean
-  position: { x: number; y: number }
-  size: { width: number; height: number }
+  position: WorldPosition
+  size: WorldSize
+  rotation?: number
+  animation?: WorldObjectAnimation
+  modelUrl?: string
   visible?: boolean
   zIndex?: number
   color?: string
@@ -41,6 +61,7 @@ export type WorldInteractionInput = {
 export type WorldInteractionState = {
   selectedObjectByHand: Map<number, string>
   grabbedObjectByHand: Map<number, string>
+  lastFrameTimestamp?: number
 }
 
 export type World = {

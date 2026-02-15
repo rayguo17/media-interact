@@ -1,4 +1,5 @@
 export { renderWorld, renderCanvasAxes } from './renderer'
+export { createThreeWorldRenderer } from './threeRenderer'
 export {
   createWorld,
   addWorldObject,

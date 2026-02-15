@@ -16,6 +16,7 @@ import {
 } from './recognizers'
 import {
   addWorldObject,
+  createThreeWorldRenderer,
   createWorld,
   renderCanvasAxes,
   renderWorld,
@@ -28,8 +29,12 @@ type InteractableDraft = {
   color: string
   positionX: number
   positionY: number
+  positionZ: number
   sizeWidth: number
   sizeHeight: number
+  sizeDepth: number
+  modelUrl: string | null
+  modelName: string
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -37,9 +42,12 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 function App() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const threeCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const threeRendererRef = useRef<ReturnType<typeof createThreeWorldRenderer> | null>(null)
   const rafIdRef = useRef<number | null>(null)
   const handLandmarkerRef = useRef<HandLandmarker | null>(null)
   const processingRef = useRef(false)
+  const uploadedModelUrlsRef = useRef<string[]>([])
   const interactableIdRef = useRef(1)
   const recognitionStateRef = useRef(createRecognitionRuntimeState())
   const worldRef = useRef(createWorld())
@@ -55,8 +63,12 @@ function App() {
     color: '#f59e0b',
     positionX: 160,
     positionY: 120,
+    positionZ: 0.5,
     sizeWidth: 120,
     sizeHeight: 80,
+    sizeDepth: 120,
+    modelUrl: null,
+    modelName: '',
   })
   const [ready, setReady] = useState(false)
 
@@ -73,13 +85,35 @@ function App() {
     const normalizedY = clamp(interactableDraft.positionY / height, 0, 1)
     const normalizedWidth = clamp(interactableDraft.sizeWidth / width, 0.01, 1)
     const normalizedHeight = clamp(interactableDraft.sizeHeight / height, 0.01, 1)
+    const normalizedDepth = clamp(interactableDraft.sizeDepth / Math.max(width, height), 0.01, 1)
+    const normalizedZ = clamp(interactableDraft.positionZ, 0, 1)
+    const isThreeDimensional =
+      interactableDraft.kind === 'box3d' ||
+      interactableDraft.kind === 'sphere3d' ||
+      interactableDraft.kind === 'model3d'
+
+    if (interactableDraft.kind === 'model3d' && !interactableDraft.modelUrl) {
+      setError('Please upload a .glb or .gltf file before adding a 3D model object.')
+      return
+    }
+
+    setError(null)
 
     addWorldObject(worldRef.current, {
       id: `interactable-${interactableIdRef.current}`,
       kind: interactableDraft.kind,
       interactable: true,
-      position: { x: normalizedX, y: normalizedY },
-      size: { width: normalizedWidth, height: normalizedHeight },
+      position: {
+        x: normalizedX,
+        y: normalizedY,
+        ...(isThreeDimensional ? { z: normalizedZ } : {}),
+      },
+      size: {
+        width: normalizedWidth,
+        height: normalizedHeight,
+        ...(isThreeDimensional ? { depth: normalizedDepth } : {}),
+      },
+      ...(interactableDraft.kind === 'model3d' ? { modelUrl: interactableDraft.modelUrl ?? undefined } : {}),
       color: interactableDraft.color,
       visible: true,
       zIndex: 20,
@@ -128,6 +162,28 @@ function App() {
         handLandmarkerRef.current = null
       }
       clearRecognitionRuntimeState(recognitionStateRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      for (const url of uploadedModelUrlsRef.current) {
+        URL.revokeObjectURL(url)
+      }
+      uploadedModelUrlsRef.current = []
+    }
+  }, [])
+
+  useEffect(() => {
+    const threeCanvas = threeCanvasRef.current
+    if (!threeCanvas) return
+
+    const renderer = createThreeWorldRenderer(threeCanvas)
+    threeRendererRef.current = renderer
+
+    return () => {
+      renderer.dispose()
+      threeRendererRef.current = null
     }
   }, [])
 
@@ -246,6 +302,20 @@ function App() {
             })
             renderWorld(worldRef.current, ctx)
             renderCanvasAxes(ctx)
+
+            if (threeCanvasRef.current) {
+              if (threeCanvasRef.current.width !== width) {
+                threeCanvasRef.current.width = width
+              }
+              if (threeCanvasRef.current.height !== height) {
+                threeCanvasRef.current.height = height
+              }
+            }
+
+            if (threeRendererRef.current) {
+              threeRendererRef.current.resize(width, height)
+              threeRendererRef.current.render(worldRef.current)
+            }
           }
         }
       }
@@ -276,10 +346,10 @@ function App() {
             muted
             style={{ width: '100%', maxWidth: 720 }}
           />
-          <canvas
-            ref={canvasRef}
-            style={{ width: '100%', maxWidth: 720 }}
-          />
+          <div className="canvas-stack" style={{ width: '100%', maxWidth: 720 }}>
+            <canvas ref={canvasRef} className="base-world-canvas" />
+            <canvas ref={threeCanvasRef} className="three-overlay-canvas" />
+          </div>
           <div>
             <form className="add-interactable-panel" onSubmit={onAddInteractable}>
               <h2>Add Interactable</h2>
@@ -300,8 +370,43 @@ function App() {
                 >
                   <option value="rect">Rectangle</option>
                   <option value="circle">Circle</option>
+                  <option value="box3d">3D Box</option>
+                  <option value="sphere3d">3D Sphere</option>
+                  <option value="model3d">3D Model (Upload)</option>
                 </select>
               </label>
+
+              {interactableDraft.kind === 'model3d' && (
+                <label>
+                  Model File (.glb/.gltf)
+                  <input
+                    type="file"
+                    accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+
+                      if (!/\.(glb|gltf)$/i.test(file.name)) {
+                        setError('Unsupported 3D file type. Please upload .glb or .gltf.')
+                        return
+                      }
+
+                      const modelUrl = URL.createObjectURL(file)
+                      uploadedModelUrlsRef.current.push(modelUrl)
+
+                      setInteractableDraft((prev) => ({
+                        ...prev,
+                        modelUrl,
+                        modelName: file.name,
+                      }))
+                      setError(null)
+                    }}
+                  />
+                  <span className="panel-note">
+                    {interactableDraft.modelName ? `Selected: ${interactableDraft.modelName}` : 'No file selected'}
+                  </span>
+                </label>
+              )}
 
               <label>
                 Color
@@ -350,6 +455,27 @@ function App() {
                 </label>
               </div>
 
+              {(interactableDraft.kind === 'box3d' ||
+                interactableDraft.kind === 'sphere3d' ||
+                interactableDraft.kind === 'model3d') && (
+                <label>
+                  Z (0-1)
+                  <input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={interactableDraft.positionZ}
+                    onChange={(e) =>
+                      setInteractableDraft((prev) => ({
+                        ...prev,
+                        positionZ: Number(e.target.value),
+                      }))
+                    }
+                  />
+                </label>
+              )}
+
               <div className="field-row">
                 <label>
                   Width
@@ -382,6 +508,26 @@ function App() {
                   />
                 </label>
               </div>
+
+              {(interactableDraft.kind === 'box3d' ||
+                interactableDraft.kind === 'sphere3d' ||
+                interactableDraft.kind === 'model3d') && (
+                <label>
+                  Depth
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.max(canvasWidth, canvasHeight) || undefined}
+                    value={interactableDraft.sizeDepth}
+                    onChange={(e) =>
+                      setInteractableDraft((prev) => ({
+                        ...prev,
+                        sizeDepth: Number(e.target.value),
+                      }))
+                    }
+                  />
+                </label>
+              )}
 
               <button type="submit" disabled={!canvasWidth || !canvasHeight}>
                 Add to world

@@ -55,34 +55,44 @@ export const renderWorld = (world: World, ctx: CanvasRenderingContext2D) => {
 
     const position = toCanvasPosition(object.position, canvas)
     const size = toCanvasSize(object.size, canvas)
+    const rotation = object.rotation ?? 0
 
     ctx.save()
     ctx.fillStyle = object.color ?? (object.interactable ? '#f59e0b' : '#60a5fa')
+    ctx.translate(position.x, position.y)
+    ctx.rotate(rotation)
 
     if (object.kind === 'circle') {
       const radius = Math.min(size.width, size.height) / 2
       ctx.beginPath()
-      ctx.arc(position.x, position.y, radius, 0, Math.PI * 2)
+      ctx.arc(0, 0, radius, 0, Math.PI * 2)
       ctx.fill()
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(0, 0)
+      ctx.lineTo(radius, 0)
+      ctx.stroke()
 
       if (selectedObjectIds.has(object.id)) {
         ctx.strokeStyle = '#ffffff'
         ctx.lineWidth = 2
         ctx.beginPath()
-        ctx.arc(position.x, position.y, radius + 3, 0, Math.PI * 2)
+        ctx.arc(0, 0, radius + 3, 0, Math.PI * 2)
         ctx.stroke()
       }
     }
 
     if (object.kind === 'rect') {
-      ctx.fillRect(position.x - size.width / 2, position.y - size.height / 2, size.width, size.height)
+      ctx.fillRect(-size.width / 2, -size.height / 2, size.width, size.height)
 
       if (selectedObjectIds.has(object.id)) {
         ctx.strokeStyle = '#ffffff'
         ctx.lineWidth = 2
         ctx.strokeRect(
-          position.x - size.width / 2 - 3,
-          position.y - size.height / 2 - 3,
+          -size.width / 2 - 3,
+          -size.height / 2 - 3,
           size.width + 6,
           size.height + 6
         )
