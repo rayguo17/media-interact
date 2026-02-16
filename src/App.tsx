@@ -93,7 +93,7 @@ function App() {
       interactableDraft.kind === 'model3d'
 
     if (interactableDraft.kind === 'model3d' && !interactableDraft.modelUrl) {
-      setError('Please upload a .glb or .gltf file before adding a 3D model object.')
+      setError('Please upload a .glb file before adding a 3D model object.')
       return
     }
 
@@ -277,18 +277,6 @@ function App() {
           if (ctx) {
             // obtain the current video frame and draw it on the canvas
             ctx.drawImage(video, 0, 0, width, height)
-            const imageData = ctx.getImageData(0, 0, width, height)
-            // modification: invert the colors of the image
-            const data = imageData.data
-
-            for (let i = 0; i < data.length; i += 4) {
-              data[i] = 255 - data[i]
-              data[i + 1] = 255 - data[i + 1]
-              data[i + 2] = 255 - data[i + 2]
-            }
-
-            // draw the modified image back to the canvas
-            ctx.putImageData(imageData, 0, 0)
 
             updateWorldFrame(worldRef.current, {
               timestamp: frameTimestamp,
@@ -378,16 +366,16 @@ function App() {
 
               {interactableDraft.kind === 'model3d' && (
                 <label>
-                  Model File (.glb/.gltf)
+                  Model File (.glb)
                   <input
                     type="file"
-                    accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+                    accept=".glb,model/gltf-binary"
                     onChange={(e) => {
                       const file = e.target.files?.[0]
                       if (!file) return
 
-                      if (!/\.(glb|gltf)$/i.test(file.name)) {
-                        setError('Unsupported 3D file type. Please upload .glb or .gltf.')
+                      if (!/\.glb$/i.test(file.name)) {
+                        setError('Unsupported 3D file type. Please upload a .glb model.')
                         return
                       }
 
@@ -405,6 +393,7 @@ function App() {
                   <span className="panel-note">
                     {interactableDraft.modelName ? `Selected: ${interactableDraft.modelName}` : 'No file selected'}
                   </span>
+                  <span className="panel-note">Use GLB to ensure textures and geometry are self-contained.</span>
                 </label>
               )}
 

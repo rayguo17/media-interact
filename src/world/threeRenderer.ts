@@ -13,6 +13,7 @@ type RenderNode = {
   kind: 'primitive' | 'model'
   modelUrl?: string
   baseSize?: THREE.Vector3
+  placeholder?: THREE.Mesh
   loading?: boolean
 }
 
@@ -57,6 +58,11 @@ const createMaterial = (color: string | undefined) => {
     transparent: true,
     opacity: 0.95,
   })
+}
+
+const createPlaceholderMesh = (color: string | undefined) => {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), createMaterial(color))
+  return mesh
 }
 
 export const createThreeWorldRenderer = (canvas: HTMLCanvasElement): ThreeWorldRenderer => {
@@ -142,6 +148,12 @@ export const createThreeWorldRenderer = (canvas: HTMLCanvasElement): ThreeWorldR
     node.loading = true
     node.modelUrl = object.modelUrl
 
+    if (node.placeholder) {
+      const material = node.placeholder.material as THREE.MeshStandardMaterial
+      material.color = new THREE.Color('#f59e0b')
+      material.opacity = 0.55
+    }
+
     const expectedUrl = object.modelUrl
     gltfLoader.load(
       expectedUrl,
@@ -150,16 +162,30 @@ export const createThreeWorldRenderer = (canvas: HTMLCanvasElement): ThreeWorldR
 
         node.root.clear()
         const modelRoot = gltf.scene
+
+        const modelBounds = new THREE.Box3().setFromObject(modelRoot)
+        const modelCenter = new THREE.Vector3()
+        modelBounds.getCenter(modelCenter)
+        modelRoot.position.sub(modelCenter)
+
+        modelRoot.updateMatrixWorld(true)
         node.root.add(modelRoot)
 
         const box = new THREE.Box3().setFromObject(modelRoot)
         const size = new THREE.Vector3()
         box.getSize(size)
         node.baseSize = size
+        node.placeholder = undefined
         node.loading = false
       },
       undefined,
-      () => {
+      (error) => {
+        console.error('Failed to load 3D model', expectedUrl, error)
+        if (node.placeholder) {
+          const material = node.placeholder.material as THREE.MeshStandardMaterial
+          material.color = new THREE.Color('#ef4444')
+          material.opacity = 0.7
+        }
         node.loading = false
       }
     )
@@ -170,7 +196,7 @@ export const createThreeWorldRenderer = (canvas: HTMLCanvasElement): ThreeWorldR
       if (isModelObject(object)) {
         const root = new THREE.Group()
         root.name = object.id
-        const placeholder = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), createMaterial(object.color))
+        const placeholder = createPlaceholderMesh(object.color)
         root.add(placeholder)
         scene.add(root)
 
@@ -179,6 +205,7 @@ export const createThreeWorldRenderer = (canvas: HTMLCanvasElement): ThreeWorldR
           kind: 'model',
           modelUrl: undefined,
           baseSize: undefined,
+          placeholder,
           loading: false,
         }
         nodeById.set(object.id, modelNode)
