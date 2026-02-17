@@ -1,5 +1,9 @@
 # Media Interaction Experiement
 
+## Goal
+
+A fully engineeringly scalable and self-evolve friendly Augmented Reality Animation Framework.
+
 ## Game Engine
 
 [Three.js]() For interactable 3D canvas 

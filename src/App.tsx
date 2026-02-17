@@ -277,6 +277,18 @@ function App() {
           if (ctx) {
             // obtain the current video frame and draw it on the canvas
             ctx.drawImage(video, 0, 0, width, height)
+            // const imageData = ctx.getImageData(0, 0, width, height)
+            // // modification: invert the colors of the image
+            // const data = imageData.data
+
+            // for (let i = 0; i < data.length; i += 4) {
+            //   data[i] = 255 - data[i]
+            //   data[i + 1] = 255 - data[i + 1]
+            //   data[i + 2] = 255 - data[i + 2]
+            // }
+
+            // // draw the modified image back to the canvas
+            // ctx.putImageData(imageData, 0, 0)
 
             updateWorldFrame(worldRef.current, {
               timestamp: frameTimestamp,
